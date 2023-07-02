@@ -13,33 +13,26 @@ import (
 
 type Uploader struct {
 	credentialsJSON []byte
+	service         *drive.Service
 }
 
-func New(credentialsJSON []byte) *Uploader {
+func New(credentialsJSON []byte) (*Uploader, error) {
+	ctx := context.Background()
+	options := option.WithCredentialsJSON(credentialsJSON)
+	service, err := drive.NewService(ctx, options)
+
+	if err != nil {
+		log.Fatalf("Unable to create Drivade service: %v", err)
+		return nil, err
+	}
+
 	return &Uploader{
 		credentialsJSON: credentialsJSON,
-	}
+		service:         service,
+	}, nil
 }
 
-func (u *Uploader) Upload(file []byte, filename string) string {
-	ctx := context.Background()
-	options := option.WithCredentialsJSON(u.credentialsJSON)
-	service, err := drive.NewService(ctx, options)
-	if err != nil {
-		log.Fatalf("Unable to create Drive service: %v", err)
-	}
-
-	// folderName := "My Folder"
-	// folder := &drive.File{
-	// 	Name:     folderName,
-	// 	MimeType: "application/vnd.google-apps.folder",
-	// }
-
-	// createdFolder, err := service.Files.Create(folder).Do()
-	// if err != nil {
-	// 	log.Fatalf("Unable to create folder: %v", err)
-	// }
-
+func (u *Uploader) Upload(file []byte, filename string) (string, string, error) {
 	fileReader := strings.NewReader(string(file))
 
 	splitted := strings.Split(filename, ".")
@@ -50,12 +43,12 @@ func (u *Uploader) Upload(file []byte, filename string) string {
 	driveFile := &drive.File{
 		Name:     "My Media File.mp4",
 		MimeType: mimeType,
-		// Parents:  []string{createdFolder.Id},
 	}
 
-	uploadedFile, err := service.Files.Create(driveFile).Media(fileReader).Do()
+	uploadedFile, err := u.service.Files.Create(driveFile).Media(fileReader).Do()
 	if err != nil {
 		log.Fatalf("Unable to upload media file: %v", err)
+		return "", "", err
 	}
 
 	permission := &drive.Permission{
@@ -63,11 +56,21 @@ func (u *Uploader) Upload(file []byte, filename string) string {
 		Role:               "reader",
 		AllowFileDiscovery: false,
 	}
-	_, err = service.Permissions.Create(uploadedFile.Id, permission).Do()
+	_, err = u.service.Permissions.Create(uploadedFile.Id, permission).Do()
 	if err != nil {
 		log.Fatalf("Failed to create permission for the file: %v", err)
+		return "", "", err
 	}
 
 	fileLink := fmt.Sprintf("https://drive.google.com/file/d/%s/view?usp=sharing", uploadedFile.Id)
-	return fileLink
+	return fileLink, uploadedFile.Id, nil
+}
+
+func (u *Uploader) Delete(fileID string) error {
+	err := u.service.Files.Delete(fileID).Do()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

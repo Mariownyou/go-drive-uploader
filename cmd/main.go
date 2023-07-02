@@ -13,8 +13,8 @@ func main() {
 
 	creds := []byte(os.Getenv("GOOGLE_DRRIVE_CREDENTIALS"))
 
-	uploader := drive_uploader.New(creds)
+	uploader, _ := drive_uploader.New(creds)
 
-	link := uploader.Upload(file, filename)
+	link, _, _ := uploader.Upload(file, filename)
 	fmt.Println(link)
 }
