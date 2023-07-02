@@ -41,7 +41,7 @@ func (u *Uploader) Upload(file []byte, filename string) (string, string, error) 
 	mimeType := mime.TypeByExtension("." + extension)
 
 	driveFile := &drive.File{
-		Name:     "My Media File.mp4",
+		Name:     filename,
 		MimeType: mimeType,
 	}
 
