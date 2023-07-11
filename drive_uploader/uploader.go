@@ -53,24 +53,37 @@ func (u *Uploader) ShareFile(file []byte, filename string) (string, string, erro
 }
 
 func (u *Uploader) Upload(b []byte, f *drive.File, p *drive.Permission) (string, string, error) {
-	fileReader := strings.NewReader(string(b))
+	file := strings.NewReader(string(b))
+	fileSize := len(b)
 
-	uploadedFile, err := u.service.Files.Create(f).Media(fileReader).Do()
+	var res *drive.File
+	var err error
+
+	if fileSize > 5*1024*1024 {
+		res, err = u.service.Files.
+			Create(f).
+			ResumableMedia(context.Background(), file, int64(fileSize), f.MimeType).
+			ProgressUpdater(func(now, size int64) { fmt.Printf("%d, %d\r", now, size) }).
+			Do()
+	} else {
+		res, err = u.service.Files.Create(f).Media(file).Do()
+	}
+
 	if err != nil {
 		log.Fatalf("Unable to upload media file: %v", err)
 		return "", "", err
 	}
 
 	if p != nil {
-		_, err = u.service.Permissions.Create(uploadedFile.Id, p).Do()
+		_, err = u.service.Permissions.Create(res.Id, p).Do()
 		if err != nil {
 			log.Fatalf("Failed to create permission for the file: %v", err)
 			return "", "", err
 		}
 	}
 
-	fileLink := fmt.Sprintf("https://drive.google.com/file/d/%s/view?usp=sharing", uploadedFile.Id)
-	return fileLink, uploadedFile.Id, nil
+	fileLink := fmt.Sprintf("https://drive.google.com/file/d/%s/view?usp=sharing", res.Id)
+	return fileLink, res.Id, nil
 }
 
 func (u *Uploader) CreateFolder(name string, parents ...string) (string, error) {
